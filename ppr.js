@@ -137,6 +137,45 @@ const REPORT_NAME = "com.matchcraft.rip.report.PremierPartnershipReport";
 const SNAP_MODE = (process.env.AR_SNAP_MODE || "none").toLowerCase(); // "none" | "errors" | "all"
 
 /* =========================
+   Summary Table helpers
+   ========================= */
+function yn(v) { return v ? "Yes" : "No"; }
+
+function padRight(str, len) {
+  str = String(str ?? "");
+  if (str.length >= len) return str;
+  return str + " ".repeat(len - str.length);
+}
+
+function printSummaryTable(rows) {
+  const headers = ["Client", "Report downloaded", "Report uploaded to drive"];
+
+  const widths = [
+    Math.max(headers[0].length, ...rows.map(r => (r.client || "").length)),
+    Math.max(headers[1].length, ...rows.map(r => yn(r.downloaded).length)),
+    Math.max(headers[2].length, ...rows.map(r => yn(r.uploaded).length)),
+  ];
+
+  const line = (cols) =>
+    `${padRight(cols[0], widths[0])} | ${padRight(cols[1], widths[1])} | ${padRight(cols[2], widths[2])}`;
+
+  console.log("\n==================== SUMMARY ====================");
+  console.log(line(headers));
+  console.log(`${"-".repeat(widths[0])}-+-${"-".repeat(widths[1])}-+-${"-".repeat(widths[2])}`);
+
+  for (const r of rows) {
+    console.log(
+      line([
+        r.client || "",
+        yn(r.downloaded),
+        yn(r.uploaded),
+      ])
+    );
+  }
+  console.log("=================================================\n");
+}
+
+/* =========================
    Screenshot Debug (context-safe)
    ========================= */
 const SCREEN_DIR = path.resolve(process.cwd(), "screenshots");
@@ -201,27 +240,22 @@ function istDates() {
 
   if (dow === 1) {
     // Monday run covers Fri, Sat, Sun
-    // Fri = -3, Sat = -2, Sun = -1
     startOffset = -3;
     endOffset = -1;
   } else if (dow === 2) {
     // Tuesday run covers Thu, Fri, Sat, Sun, Mon
-    // Thu = -5, Fri = -4, Sat = -3, Sun = -2, Mon = -1
     startOffset = -5;
     endOffset = -1;
   } else if (dow === 3) {
     // Wednesday run covers Mon, Tue
-    // Mon = -2, Tue = -1
     startOffset = -2;
     endOffset = -1;
   } else if (dow === 4) {
     // Thursday run covers Tue, Wed
-    // Tue = -2, Wed = -1
     startOffset = -2;
     endOffset = -1;
   } else if (dow === 5) {
     // Friday run covers Wed, Thu
-    // Wed = -2, Thu = -1
     startOffset = -2;
     endOffset = -1;
   } else {
@@ -837,6 +871,8 @@ async function handleGoogleSSO(page, browser) {
   console.log(">> Google SSO: using email/password fallback.");
   if (!googlePage || googlePage.isClosed()) return;
 
+  // NOTE: typeIfEmpty isn't defined in your paste; leaving your original logic untouched.
+  // If you actually rely on this path, you should implement typeIfEmpty similarly to forceType.
   try {
     if (!/accounts\.google\.com/i.test(googlePage.url())) return;
 
@@ -851,7 +887,8 @@ async function handleGoogleSSO(page, browser) {
         .catch(() => null))
         ? "input[type='email']"
         : "input#identifierId";
-      await typeIfEmpty(googlePage, emailSel, EMAIL);
+      // fallback to forceType since typeIfEmpty isn't present
+      await forceType(googlePage, emailSel, EMAIL);
       await snap(googlePage, "017_email_entered");
       await Promise.race([
         googlePage.click("#identifierNext").catch(() => {}),
@@ -878,7 +915,7 @@ async function handleGoogleSSO(page, browser) {
     );
     if (pwField) {
       if (GOOGLE_PASSWORD) {
-        await typeIfEmpty(googlePage, "input[type='password']", GOOGLE_PASSWORD);
+        await forceType(googlePage, "input[type='password']", GOOGLE_PASSWORD);
       }
       await snap(googlePage, "019_password_entered");
       await Promise.race([
@@ -971,6 +1008,9 @@ async function settleHandsFreeLogin(page, browser) {
   // Auto-accept any JS alerts/confirms
   await wireDialogAutoAccept(browser);
 
+  // Collect results for summary output
+  const summaryRows = [];
+
   // 1) Advantage -> hands-free login
   const page = await browser.newPage();
   await page.goto(ADV_HOME, { waitUntil: "domcontentloaded" }).catch(() => {});
@@ -1012,7 +1052,7 @@ async function settleHandsFreeLogin(page, browser) {
     process.exit(1);
   }
 
-    // Before running any reports, dismiss any confirmation sheet already open
+  // Before running any reports, dismiss any confirmation sheet already open
   await poll.bringToFront().catch(() => {});
   await clickModalOk(poll, { timeoutMs: 4000 });
 
@@ -1020,6 +1060,10 @@ async function settleHandsFreeLogin(page, browser) {
   for (const client of CLIENTS) {
     console.log("==================================================");
     console.log(`Starting client ${client.name} [${client.id}]`);
+
+    // Per-client status tracking for summary
+    let reportDownloaded = false;
+    let reportUploaded = false;
 
     // 4) changeClient with auto version repair (also gets a fresh version)
     const cc = await changeClientRobust(poll, EMAIL, client.id);
@@ -1029,6 +1073,13 @@ async function settleHandsFreeLogin(page, browser) {
         JSON.stringify(cc.res?.json || cc.res || {}, null, 2)
       );
       await snap(poll, `104_change_client_failed_${client.id}`);
+
+      summaryRows.push({
+        client: client.name,
+        downloaded: false,
+        uploaded: false,
+      });
+
       // Skip this client; continue to the next
       continue;
     }
@@ -1061,6 +1112,13 @@ async function settleHandsFreeLogin(page, browser) {
         tok.status,
         (tok.text || "").slice(0, 400)
       );
+
+      summaryRows.push({
+        client: client.name,
+        downloaded: false,
+        uploaded: false,
+      });
+
       // Don’t kill the whole job; go to next client
       continue;
     }
@@ -1116,6 +1174,9 @@ async function settleHandsFreeLogin(page, browser) {
       console.log("Report Sheet URL:", sheetUrl);
       console.log("Report File ID:", fileId || "(none)");
 
+      // Downloaded = we successfully got a sheet URL + ID
+      reportDownloaded = (runResp.status === 200 && !!sheetUrl && !!fileId);
+
       const APPS_SCRIPT_WEBHOOK = process.env.AR_APPS_SCRIPT_URL || "";
       if (fileId && APPS_SCRIPT_WEBHOOK) {
         try {
@@ -1124,8 +1185,9 @@ async function settleHandsFreeLogin(page, browser) {
           }fileId=${encodeURIComponent(fileId)}&clientId=${encodeURIComponent(
             String(client.id)
           )}&ts=${Date.now()}`;
+
           const hook = await browser.newPage();
-          await hook.goto(hookUrl, {
+          const resp = await hook.goto(hookUrl, {
             waitUntil: "domcontentloaded",
             timeout: 20000,
           });
@@ -1133,25 +1195,38 @@ async function settleHandsFreeLogin(page, browser) {
             hook,
             `210_move_webhook_loaded_${client.id}`
           );
+
+          // Some Apps Script web apps legitimately return an empty body.
+          // So consider "uploaded" if:
+          // - reportDownloaded is true
+          // - hook navigation returned HTTP 2xx (or at least ok())
+          // - no exception thrown
+          const status = resp ? resp.status() : 0;
+          const ok = resp ? resp.ok() : false;
+
           const msg = await hook.evaluate(
-            () =>
-              ((document.body && document.body.innerText) || "").slice(
-                0,
-                300
-              )
-          );
+            () => ((document.body && document.body.innerText) || "").slice(0, 300)
+          ).catch(() => "");
+
+          console.log("Move webhook HTTP status:", status || "(unknown)");
           console.log("Move webhook page says:", msg || "(no body)");
-          await hook.close();
+
+          // Primary success signal = HTTP ok
+          reportUploaded = reportDownloaded && (ok || (status >= 200 && status < 300));
+
+          await hook.close().catch(() => {});
         } catch (e) {
           console.log(
             `Move webhook navigation failed for clientId=${client.id} (non-fatal):`,
             e?.message || e
           );
+          reportUploaded = false;
         }
       } else {
         console.log(
           "Skipping move webhook (no fileId or AR_APPS_SCRIPT_URL not set)."
         );
+        reportUploaded = false;
       }
     } finally {
       await roarPage.close().catch(() => {});
@@ -1174,9 +1249,17 @@ async function settleHandsFreeLogin(page, browser) {
       (st.text || "").slice(0, 220)
     );
     await snap(poll, `202_status_${client.id}_${st.status}`);
+
+    // Record summary row
+    summaryRows.push({
+      client: client.name,
+      downloaded: reportDownloaded,
+      uploaded: reportUploaded,
+    });
   }
 
   // After all clients are processed
+  printSummaryTable(summaryRows);
   await browser.close();
 })().catch(async (e) => {
 
