@@ -488,8 +488,8 @@ async function changeClientRobust(page, email, clientId) {
 
   console.log("changeClient(version):", version || "(none)");
 
-  // 2) Try up to 3 attempts, auto-repair on -32003
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  // 2) Try up to 5 attempts, auto-repair on -32003 and transient -1 errors
+  for (let attempt = 1; attempt <= 5; attempt++) {
     const res = await postInside(page, CHANGE_URL, {
       currentLoginName: email,
       version,
@@ -503,6 +503,16 @@ async function changeClientRobust(page, email, clientId) {
     if (res.status === 200 && !code) {
       // Success, keep VERSION as-is
       return { ok: true, version, res };
+    }
+
+    if (res.status === -1) {
+      console.log(`>> changeClient: transient error (context destroyed / navigation), waiting before retry…`);
+      await sleep(3000);
+      try {
+        await page.goto(SUPER_HOME, { waitUntil: "networkidle2", timeout: 60000 }).catch(()=>{});
+        await sleep(1000);
+      } catch {}
+      continue;
     }
 
     if (code === -32003) {
@@ -526,7 +536,6 @@ async function changeClientRobust(page, email, clientId) {
         version = newVersion;
         VERSION = newVersion;
         console.log(">> changeClient: re-detected version:", newVersion);
-        // retry with the new version in the next loop iteration
         continue;
       }
 
@@ -541,7 +550,7 @@ async function changeClientRobust(page, email, clientId) {
       };
     }
 
-    // Some other error, don't keep retrying forever
+    // Some other non-retryable error
     return { ok: false, version, res };
   }
 
