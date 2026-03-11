@@ -1,4 +1,11 @@
-Error: The browser is already running for C:\PPRChrome. Use a different `userDataDir` or stop the running browser first.
-    at ChromeLauncher.launch (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\node\BrowserLauncher.js:174:23)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\ppr.js:958:19
+Error: Execution context was destroyed, most likely because of a navigation.
+    at rewriteError (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:457:15)
+    at async #evaluate (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:389:60)
+    at async ExecutionContext.evaluate (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:818:20)
+    at async detectVersion (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\ppr.js:362:14)
+    at async detectVersionFresh (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\ppr.js:394:11)
+    at async changeClientRobust (C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\ppr.js:438:17)
+    at async C:\Users\thomasa\OneDrive\Desktop\Automations\PPR Reports Fetching\ppr.js:1069:16

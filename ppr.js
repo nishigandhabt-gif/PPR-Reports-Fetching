@@ -335,55 +335,70 @@ async function postInside(page, url, body, headers, credOpt) {
 }
 
 async function detectVersion(page) {
-  const v1 = await page.evaluate(() => {
-    const tryvals = [];
-    tryvals.push(window.__APP_CONFIG__ && window.__APP_CONFIG__.version);
-    tryvals.push(window.appVersion);
-    tryvals.push(window.version);
+  // Each evaluate is wrapped to survive "execution context destroyed" from navigations
+  try {
+    const v1 = await page.evaluate(() => {
+      const tryvals = [];
+      tryvals.push(window.__APP_CONFIG__ && window.__APP_CONFIG__.version);
+      tryvals.push(window.appVersion);
+      tryvals.push(window.version);
 
-    const mMeta = document.querySelector("meta[name='app:version']")?.content;
-    const mData = document.querySelector("[data-version]")?.getAttribute("data-version");
-    if (mMeta) tryvals.push(mMeta);
-    if (mData) tryvals.push(mData);
+      const mMeta = document.querySelector("meta[name='app:version']")?.content;
+      const mData = document.querySelector("[data-version]")?.getAttribute("data-version");
+      if (mMeta) tryvals.push(mMeta);
+      if (mData) tryvals.push(mData);
 
-    const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+(?:PST|UTC|GMT)\b/;
-    for (const s of Array.from(document.scripts)) {
-      const t = s.textContent || "";
-      const m = t.match(re);
-      if (m) { tryvals.push(m[0]); break; }
-    }
-    const html = document.documentElement.outerHTML;
-    const m2 = html.match(re);
-    if (m2) tryvals.push(m2[0]);
-    return tryvals.filter(Boolean)[0] || "";
-  });
-  if (v1) return v1;
+      const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]{2,5}\b/;
+      for (const s of Array.from(document.scripts)) {
+        const t = s.textContent || "";
+        const m = t.match(re);
+        if (m) { tryvals.push(m[0]); break; }
+      }
+      const html = document.documentElement.outerHTML;
+      const m2 = html.match(re);
+      if (m2) tryvals.push(m2[0]);
+      return tryvals.filter(Boolean)[0] || "";
+    });
+    if (v1) return v1;
+  } catch (e) {
+    console.log("detectVersion v1 evaluate failed (navigation?):", e.message);
+  }
 
-  const v2 = await page.evaluate(async (home) => {
-    try {
-      const r = await fetch(home, { credentials: "include" });
-      const h = await r.text();
-      const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+(?:PST|UTC|GMT)\b/;
-      const m = h.match(re);
-      if (m) return m[0];
-      const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
-      return (m2 && m2[1]) || "";
-    } catch { return ""; }
-  }, `${SUPER}/`);
-  if (v2) return v2;
+  try {
+    const v2 = await page.evaluate(async (home) => {
+      try {
+        const r = await fetch(home, { credentials: "include" });
+        const h = await r.text();
+        const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]{2,5}\b/;
+        const m = h.match(re);
+        if (m) return m[0];
+        const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
+        return (m2 && m2[1]) || "";
+      } catch { return ""; }
+    }, `${SUPER}/`);
+    if (v2) return v2;
+  } catch (e) {
+    console.log("detectVersion v2 evaluate failed (navigation?):", e.message);
+  }
 
-  const v3 = await page.evaluate(async (home) => {
-    try {
-      const r = await fetch(home, { credentials: "include" });
-      const h = await r.text();
-      const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+(?:PST|UTC|GMT)\b/;
-      const m = h.match(re);
-      if (m) return m[0];
-      const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
-      return (m2 && m2[1]) || "";
-    } catch { return ""; }
-  }, SUPER_HOME);
-  return v3 || "";
+  try {
+    const v3 = await page.evaluate(async (home) => {
+      try {
+        const r = await fetch(home, { credentials: "include" });
+        const h = await r.text();
+        const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]{2,5}\b/;
+        const m = h.match(re);
+        if (m) return m[0];
+        const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
+        return (m2 && m2[1]) || "";
+      } catch { return ""; }
+    }, SUPER_HOME);
+    if (v3) return v3;
+  } catch (e) {
+    console.log("detectVersion v3 evaluate failed (navigation?):", e.message);
+  }
+
+  return "";
 }
 
 /* =========================
@@ -400,19 +415,30 @@ async function detectVersionFresh(page) {
     await page.goto(`${SUPER}/?nocache=1${bust}`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(()=>{});
     await page.goto(`${SUPER_HOME}&nocache=1${bust}`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(()=>{});
   } catch {}
-  // Retry detection with cache: reload
-  const v2 = await page.evaluate(async (home) => {
-    try {
-      const r = await fetch(home + (home.includes('?') ? '&' : '?') + '_=' + Date.now(), { credentials: "include", cache: "reload" });
-      const h = await r.text();
-      const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+(?:PST|UTC|GMT)\b/;
-      const m = h.match(re);
-      if (m) return m[0];
-      const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
-      return (m2 && m2[1]) || "";
-    } catch { return ""; }
-  }, SUPER_HOME);
-  return v2 || "";
+
+  // Let the page settle after navigation before evaluating
+  await sleep(2000);
+
+  try {
+    const v2 = await page.evaluate(async (home) => {
+      try {
+        const r = await fetch(home + (home.includes('?') ? '&' : '?') + '_=' + Date.now(), { credentials: "include", cache: "reload" });
+        const h = await r.text();
+        const re = /\b\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]{2,5}\b/;
+        const m = h.match(re);
+        if (m) return m[0];
+        const m2 = h.match(/"version"\s*:\s*"([^"]+)"/);
+        return (m2 && m2[1]) || "";
+      } catch { return ""; }
+    }, SUPER_HOME);
+    if (v2) return v2;
+  } catch (e) {
+    console.log("detectVersionFresh evaluate failed (navigation?):", e.message);
+  }
+
+  // Final fallback: wait longer, try detectVersion one more time
+  await sleep(3000);
+  return await detectVersion(page);
 }
 
 async function forceAppRefresh(page, snapName) {
