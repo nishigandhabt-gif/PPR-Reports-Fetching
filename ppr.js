@@ -79,7 +79,6 @@ if (hasSingleOverride) {
 
   // IDs for clients that should run on Monday/Wednesday/Friday only
   const MWF_IDS = new Set([
-    1101, // Spectrum Reach
     40,   // Advance Local
     1354, // Gray Television
     1140, // McClatchy AdAuto & Custom
