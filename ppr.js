@@ -46,7 +46,7 @@ function loadClientsFromCsv() {
   for (let i = 1; i < lines.length; i++) {
     const row = parseCsvLine(lines[i]);
     if (!row.length) continue;
-    const [name, idStr, enabledRaw] = row;
+    const [name, idStr, enabledRaw, dayOfMonthStr] = row;
     if (!name || !idStr) continue;
     const id = Number(idStr);
     if (!Number.isFinite(id)) continue;
@@ -55,7 +55,8 @@ function loadClientsFromCsv() {
     enabled = enabled === "true";
 
     if (!enabled) continue; // skip disabled rows
-    result.push({ name, id });
+    const dayOfMonth = dayOfMonthStr ? Number(dayOfMonthStr) : null;
+    result.push({ name, id, dayOfMonth });
   }
   return result;
 }
@@ -75,35 +76,12 @@ const hasSingleOverride = (SINGLE_CLIENT !== null && !Number.isNaN(SINGLE_CLIENT
 if (hasSingleOverride) {
   CLIENTS = CLIENTS.filter(c => c.id === SINGLE_CLIENT);
 } else {
-  // No single override: apply weekday scheduling logic
-
-  // IDs for clients that should run on Monday/Wednesday/Friday only
-  const MWF_IDS = new Set([
-    40,   // Advance Local
-    1354, // Gray Television
-    1140, // McClatchy AdAuto & Custom
-    1033, // McClatchy Interactive
-    1075, // Sproutloud
-  ]);
-
+  // No single override: filter by day-of-month schedule
   const today = new Date();
-  const dow = today.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  const dom = today.getDate(); // day of month (1-31)
 
-  const isMWF = (dow === 1 || dow === 3 || dow === 5); // Mon, Wed, Fri
-  const isTTh = (dow === 2 || dow === 4);              // Tue, Thu
-
-  if (isMWF) {
-    // Keep only MWF clients
-    CLIENTS = CLIENTS.filter(c => MWF_IDS.has(c.id));
-    console.log("Weekday group: MWF – running only MWF clients.");
-  } else if (isTTh) {
-    // Keep only non-MWF clients (T/Th group)
-    CLIENTS = CLIENTS.filter(c => !MWF_IDS.has(c.id));
-    console.log("Weekday group: TTh – running all clients except MWF group.");
-  } else {
-    console.log("Today is weekend (Sat/Sun) or unsupported; no clients scheduled to run.");
-    CLIENTS = [];
-  }
+  CLIENTS = CLIENTS.filter(c => c.dayOfMonth === dom);
+  console.log(`Day of month: ${dom} – running ${CLIENTS.length} client(s) scheduled for today.`);
 }
 
 if (!CLIENTS.length) {
@@ -223,9 +201,6 @@ function istDates() {
   // "Now" in IST, as a shifted view of UTC
   const istNow = new Date(nowUtcMs + IST_OFFSET_MS);
 
-  // Weekday in IST: 0=Sun, 1=Mon, ..., 6=Sat
-  const dow = istNow.getUTCDay();
-
   // Base = midnight (00:00) of *today in IST*, represented in UTC millis
   const baseMs = Date.UTC(
     istNow.getUTCFullYear(),
@@ -233,35 +208,9 @@ function istDates() {
     istNow.getUTCDate()
   );
 
-  // Offsets from today's IST date, excluding today itself.
-  let startOffset;
-  let endOffset;
-
-  if (dow === 1) {
-    // Monday run covers Fri, Sat, Sun
-    startOffset = -3;
-    endOffset = -1;
-  } else if (dow === 2) {
-    // Tuesday run covers Thu, Fri, Sat, Sun, Mon
-    startOffset = -5;
-    endOffset = -1;
-  } else if (dow === 3) {
-    // Wednesday run covers Mon, Tue
-    startOffset = -2;
-    endOffset = -1;
-  } else if (dow === 4) {
-    // Thursday run covers Tue, Wed
-    startOffset = -2;
-    endOffset = -1;
-  } else if (dow === 5) {
-    // Friday run covers Wed, Thu
-    startOffset = -2;
-    endOffset = -1;
-  } else {
-    // Weekend or unexpected: default to "yesterday only"
-    startOffset = -1;
-    endOffset = -1;
-  }
+  // 4-day lookback: covers 4 days ending yesterday
+  const startOffset = -4;
+  const endOffset = -1;
 
   function fmtYyyymmdd(ms) {
     const d = new Date(ms);
@@ -274,13 +223,7 @@ function istDates() {
   const startDate = fmtYyyymmdd(baseMs + startOffset * ONE_DAY_MS);
   const endDate = fmtYyyymmdd(baseMs + endOffset * ONE_DAY_MS);
 
-  console.log("istDates range (IST):", {
-    dow,
-    startOffset,
-    endOffset,
-    startDate,
-    endDate,
-  });
+  console.log("istDates range (IST):", { startDate, endDate });
 
   return { startDate, endDate };
 }

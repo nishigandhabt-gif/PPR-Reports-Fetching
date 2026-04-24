@@ -1,26 +1,23 @@
-client_name,client_id,enabled
-411Locals,1377,TRUE
-Ad Pages Solutions,2059,TRUE
-Advance Local,40,TRUE
-Amplify,2078,TRUE
-Audigy - Managed Service,2085,TRUE
-Boca Broadly,1413,TRUE
-BW Digital Publishing,2067,TRUE
-Chrispy Media Group,2034,TRUE
-Draft Media Partners,2082,TRUE
-Frostbite Marketing,2075,TRUE
-Gray Television,1354,TRUE
-Homefield Digital - Managed Services,2040,TRUE
-LocalLook,2055,TRUE
-McClatchy AdAuto & Custom,1140,TRUE
-McClatchy Interactive,1033,TRUE
-Net72 Limited,2064,TRUE
-Sproutloud,1075,TRUE
-TecNation CAD,2068,TRUE
-TecNation USD,2071,TRUE
-The Worx Company,2073,TRUE
-TSG POS,2079,TRUE
-TurboFuel,2062,TRUE
-Vivial,1254,TRUE
-XDC MB,2077,TRUE
-Innovative Direct Marketing,2086,TRUE
+client_name,client_id,enabled,day_of_month
+411Locals,1377,TRUE,15
+Advance Local,40,TRUE,8
+Amplify,2078,TRUE,4
+Audigy - Managed Service,2085,TRUE,19
+Chrispy Media Group,2034,TRUE,10
+Draft Media Partners,2082,TRUE,16
+Frostbite Marketing,2075,TRUE,20
+Gray Television,1354,TRUE,12
+Homefield Digital - Managed Services,2040,TRUE,22
+Innovative Direct Marketing,2086,TRUE,24
+LocalLook,2055,TRUE,5
+McClatchy AdAuto & Custom,1140,TRUE,5
+McClatchy Interactive,1033,TRUE,5
+Sproutloud,1075,TRUE,17
+TecNation CAD,2068,TRUE,11
+TecNation USD,2071,TRUE,11
+TSG POS,2079,TRUE,18
+Ad Pages Solutions,2059,TRUE,
+Net72 Limited,2064,TRUE,
+The Worx Company,2073,TRUE,
+TurboFuel,2062,TRUE,
+XDC MB,2077,TRUE,
